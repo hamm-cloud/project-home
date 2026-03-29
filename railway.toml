@@ -1,0 +1,25 @@
+[build]
+builder = "nixpacks"
+
+[deploy]
+restartPolicyType = "on-failure"
+restartPolicyMaxRetries = 3
+
+[[services]]
+name = "backend"
+buildCommand = "cd backend && pip install -r requirements.txt"
+startCommand = "cd backend && uvicorn main:socket_app --host 0.0.0.0 --port $PORT"
+healthcheckPath = "/"
+environmentVariables = [
+  "GROQ_API_KEY",
+  "ELEVENLABS_API_KEY", 
+  "ELEVENLABS_VOICE_ID",
+  "OPENCLAW_API_URL",
+  "HAMM_SESSION_ID"
+]
+
+[[services]]
+name = "frontend"
+buildCommand = "cd frontend && npm install && npm run build"
+startCommand = "cd frontend && npm run preview -- --host 0.0.0.0 --port $PORT"
+staticPublishPath = "./frontend/dist"
