@@ -92,13 +92,13 @@ class VoiceSession:
     async def get_hamm_response(self, text: str) -> Optional[str]:
         """Send text to OpenClaw Hamm session and get response"""
         try:
-            # For now, use a simple response while we set up the real integration
-            # TODO: Connect to actual OpenClaw session once gateway is configured
-            return f"I heard you say: '{text}'. The real Hamm integration is being set up."
+            # Use the actual OpenClaw client
+            response = await send_to_hamm(text)
+            return response
         except Exception as e:
             logger.error(f"OpenClaw API Error: {e}")
             # Fallback: Return a simple acknowledgment
-            return f"I heard you say: {text}"
+            return f"I heard you say: {text}. (Connection issue with Hamm)"
     
     async def generate_speech(self, text: str) -> bytes:
         """Convert text to speech using ElevenLabs Ivy"""

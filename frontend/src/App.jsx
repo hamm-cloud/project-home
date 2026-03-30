@@ -24,20 +24,41 @@ function App() {
     // Initialize WebSocket connection
     connectWebSocket()
     
-    // Initialize audio context
-    audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)()
+    // Initialize audio context (lazy init on user interaction to avoid browser restrictions)
+    const initAudioContext = () => {
+      if (!audioContextRef.current) {
+        try {
+          audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)()
+          // Resume context if it's suspended (Chrome autoplay policy)
+          if (audioContextRef.current.state === 'suspended') {
+            audioContextRef.current.resume()
+          }
+        } catch (e) {
+          console.error('Failed to create audio context:', e)
+        }
+      }
+    }
+    
+    // Init on first user interaction
+    document.addEventListener('click', initAudioContext, { once: true })
     
     return () => {
-      if (wsRef.current) {
-        wsRef.current.close()
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.close(1000, 'Component unmounting')
       }
-      if (audioContextRef.current) {
-        audioContextRef.current.close()
+      if (audioContextRef.current?.state !== 'closed') {
+        audioContextRef.current?.close()
       }
+      document.removeEventListener('click', initAudioContext)
     }
   }, [])
 
   const connectWebSocket = () => {
+    // Prevent multiple connection attempts
+    if (wsRef.current?.readyState === WebSocket.CONNECTING) {
+      return
+    }
+    
     try {
       wsRef.current = new WebSocket(WS_URL)
       
@@ -49,23 +70,27 @@ function App() {
       wsRef.current.onmessage = async (event) => {
         if (typeof event.data === 'string') {
           // JSON message
-          const data = JSON.parse(event.data)
-          
-          switch (data.type) {
-            case 'transcription':
-              setTranscript(data.text)
-              break
-            case 'response':
-              setResponse(data.text)
-              break
-            case 'complete':
-              setIsProcessing(false)
-              playAudioQueue()
-              break
-            case 'error':
-              console.error('Error:', data.message)
-              setIsProcessing(false)
-              break
+          try {
+            const data = JSON.parse(event.data)
+            
+            switch (data.type) {
+              case 'transcription':
+                setTranscript(data.text)
+                break
+              case 'response':
+                setResponse(data.text)
+                break
+              case 'complete':
+                setIsProcessing(false)
+                playAudioQueue()
+                break
+              case 'error':
+                console.error('Error:', data.message)
+                setIsProcessing(false)
+                break
+            }
+          } catch (e) {
+            console.error('Failed to parse message:', e)
           }
         } else {
           // Binary audio data
@@ -73,11 +98,14 @@ function App() {
         }
       }
       
-      wsRef.current.onclose = () => {
-        console.log('WebSocket disconnected')
+      wsRef.current.onclose = (event) => {
+        console.log('WebSocket disconnected:', event.code, event.reason)
         setIsConnected(false)
-        // Attempt to reconnect after 3 seconds
-        setTimeout(connectWebSocket, 3000)
+        wsRef.current = null
+        // Attempt to reconnect after 3 seconds (unless intentionally closed)
+        if (event.code !== 1000) {
+          setTimeout(connectWebSocket, 3000)
+        }
       }
       
       wsRef.current.onerror = (error) => {
