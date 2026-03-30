@@ -5,6 +5,6 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   server: {
-    allowedHosts: ['fine-scholarship-arbitration-date.trycloudflare.com']
+    allowedHosts: ['.trycloudflare.com']
   }
 })
